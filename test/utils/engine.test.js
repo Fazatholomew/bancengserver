@@ -1,6 +1,8 @@
 const { expect } = require('chai');
-const { compare } = require('../../utils/engine');
+const { compare, bagiin } = require('../../utils/engine');
 const { CardSequence } = require('../../utils/cardSequence');
+const { Deck } = require('../../utils/deck');
+const { Player } = require('../../utils/player');
 
 describe('Engine Run', () => {
   describe('compare', () => {
@@ -42,6 +44,17 @@ describe('Engine Run', () => {
       const hand = new CardSequence();
       hand.addCards(['2 Heart', '2 Club']);
       expect(compare(table, hand)).to.be.equal(false);
+    });
+  });
+
+  describe('bagiin', () => {
+    it('bagiin should bagiin shuffle deck in equally amount', () => {
+      const deck = new Deck();
+      const start = deck.kocok().split(' ')[0];
+      const players = [new Player('jimboy'), new Player('jimboy'), new Player('jimboy'), new Player('jimboy')];
+      bagiin(players, deck, start);
+      expect(players[0].cards.length).to.be.equal(13);
+      expect(players[0].cards.length).to.be.equal(players[1].cards.length);
     });
   });
 });

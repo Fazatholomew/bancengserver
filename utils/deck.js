@@ -1,9 +1,9 @@
-const { baseDeck, Card } = require('./card');
+const { baseDeck } = require('./card');
 
 class Deck {
   // Deck class. Holds card classes in beginning of each game. Initially sorted.
   constructor() {
-    this.cards = Object.keys(baseDeck).map((name) => new Card(name));
+    this.cards = Object.keys(baseDeck).map((name) => name);
     this.length = 52;
   }
 
@@ -25,6 +25,7 @@ class Deck {
       this.cards[currentIndex] = this.cards[randomIndex];
       this.cards[randomIndex] = temporaryValue;
     }
+    return this.cards[this.length - 1];
   }
 
   bagi() {

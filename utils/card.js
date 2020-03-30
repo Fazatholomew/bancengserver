@@ -53,5 +53,6 @@ module.exports = {
   paket,
   baseDeck,
   Card,
-  facesRange
+  facesRange,
+  numberValues
 };

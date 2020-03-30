@@ -1,9 +1,5 @@
-const {
-  baseDeck,
-  paket,
-  Card,
-  facesRange
-} = require('./card');
+const { paket, facesRange, numberValues } = require('./card');
+const { CardSequence } = require('./cardSequence');
 
 const compare = (table, hand) => {
   // Compare if cards in hand can beat what's in the table
@@ -88,4 +84,19 @@ const compare = (table, hand) => {
   }
 };
 
-module.exports = { compare };
+const bagiin = (players, deck, start = '1') => {
+  // bagiin cards based on deck equally to players in any given start position
+  start = numberValues[start] - 1;
+  start %= players.length;
+  let counter = start;
+  while (deck.length > 0) {
+    players[counter].addCards([deck.bagi()]);
+    counter++;
+    if (counter === players.length) {
+      counter = 0;
+    }
+  }
+};
+
+
+module.exports = { compare, bagiin };

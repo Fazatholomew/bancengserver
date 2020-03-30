@@ -106,8 +106,6 @@ class CardSequence {
     this.cards.sort((a, b) => (a.cardValue > b.cardValue) ? 1 : -1);
     this.type = recognize(this.cards);
   }
-
-
 }
 
 module.exports = { CardSequence };

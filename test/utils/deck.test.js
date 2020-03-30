@@ -12,10 +12,9 @@ describe('Deck Initialization', () => {
   });
 
   it('should shuffle', () => {
-    const before = result.cards[0];
-    result.kocok();
-    const after = result.cards[0];
-    expect(before).to.not.deep.equal(after);
+    const before = result.cards[result.length - 1];
+    const after = result.kocok();
+    expect(before).to.not.equal(after);
   });
 
   it('should draw', () => {
