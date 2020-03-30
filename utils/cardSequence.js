@@ -40,7 +40,6 @@ const recognize = (seq) => {
           }
           return 'straightflush';
         }
-        console.log(straightCounter);
         return 'flush';
       }
       if (Object.keys(countNumbers).length === 2) {
@@ -73,12 +72,16 @@ class CardSequence {
     this.cards = [];
     this.length = this.cards.length;
     this.type = '';
+    this.cardTable = {};
   }
 
   addCards(names) {
     // add card into sequence
     names.forEach((name) => {
-      this.cards.push(new Card(name));
+      if (!this.cardTable[name]) {
+        this.cardTable[name] = 1;
+        this.cards.push(new Card(name));
+      }
     });
     this.update();
   }
