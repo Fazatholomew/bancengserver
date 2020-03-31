@@ -10,6 +10,10 @@ class Player {
   addCards(names) {
     this.cards.addCards(names);
   }
+
+  removeCard(indexes) {
+    this.cards.removeCards(indexes);
+  }
 }
 
 module.exports = { Player };
