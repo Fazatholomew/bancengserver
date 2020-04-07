@@ -16,4 +16,18 @@ class Player {
   }
 }
 
-module.exports = { Player };
+const turnGenerator = (userId, people) => {
+  const finalTurn = [];
+  const length = people.length;
+  finalTurn.push(userId);
+  const userIndex = finalTurn.indexOf(userId);
+  let current = userIndex + 1;
+  while (current !== userIndex) {
+    if (current > length) current = 0;
+    finalTurn.push(people[current]);
+    current++;
+  }
+  return finalTurn;
+};
+
+module.exports = { Player, turnGenerator };

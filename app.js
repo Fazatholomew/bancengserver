@@ -1,7 +1,9 @@
-/**
+/*
  * Module dependencies.
  */
 const express = require('express');
+const http = require('http').Server;
+const socket = require('socket.io');
 const compression = require('compression');
 const session = require('express-session');
 const bodyParser = require('body-parser');
@@ -16,9 +18,6 @@ const path = require('path');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const expressStatusMonitor = require('express-status-monitor');
-const multer = require('multer');
-
-const upload = multer({ dest: path.join(__dirname, 'uploads') });
 
 /**
  * Load environment variables from .env file, where API keys and passwords are configured.
@@ -26,22 +25,27 @@ const upload = multer({ dest: path.join(__dirname, 'uploads') });
 dotenv.config({ path: '.env.example' });
 
 /**
+ * Socket Controllers (socket event handlers).
+ */
+
+const { enterRoom } = require('./controllers/room');
+
+/**
  * Controllers (route handlers).
  */
-const homeController = require('./controllers/home');
-const userController = require('./controllers/user');
-const apiController = require('./controllers/api');
-const contactController = require('./controllers/contact');
+
 
 /**
  * API keys and Passport configuration.
  */
-const passportConfig = require('./config/passport');
+// const passportConfig = require('./config/passport');
 
 /**
  * Create Express server.
  */
 const app = express();
+const server = http(app);
+const io = socket(server);
 
 /**
  * Connect to MongoDB.
@@ -66,10 +70,6 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
 app.use(expressStatusMonitor());
 app.use(compression());
-app.use(sass({
-  src: path.join(__dirname, 'public'),
-  dest: path.join(__dirname, 'public')
-}));
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -120,25 +120,17 @@ app.use('/', express.static(path.join(__dirname, 'public'), { maxAge: 3155760000
 /**
  * Primary app routes.
  */
-app.get('/', homeController.index);
-app.get('/login', userController.getLogin);
-app.post('/login', userController.postLogin);
-app.get('/logout', userController.logout);
-app.get('/forgot', userController.getForgot);
-app.post('/forgot', userController.postForgot);
-app.get('/reset/:token', userController.getReset);
-app.post('/reset/:token', userController.postReset);
-app.get('/signup', userController.getSignup);
-app.post('/signup', userController.postSignup);
-app.get('/contact', contactController.getContact);
-app.post('/contact', contactController.postContact);
-app.get('/account/verify', passportConfig.isAuthenticated, userController.getVerifyEmail);
-app.get('/account/verify/:token', passportConfig.isAuthenticated, userController.getVerifyEmailToken);
-app.get('/account', passportConfig.isAuthenticated, userController.getAccount);
-app.post('/account/profile', passportConfig.isAuthenticated, userController.postUpdateProfile);
-app.post('/account/password', passportConfig.isAuthenticated, userController.postUpdatePassword);
-app.post('/account/delete', passportConfig.isAuthenticated, userController.postDeleteAccount);
-app.get('/account/unlink/:provider', passportConfig.isAuthenticated, userController.getOauthUnlink);
+
+/**
+ * Socket.io events.
+ */
+
+io.on('connect', (socket) => {
+  console.log('someone connect.');
+  socket.on('enterRoom', (payload, callback) => {
+    enterRoom({ payload, callback, socket });
+  });
+});
 
 /**
  * Error Handler.
@@ -156,9 +148,12 @@ if (process.env.NODE_ENV === 'development') {
 /**
  * Start Express server.
  */
-app.listen(app.get('port'), () => {
+server.listen(app.get('port'), () => {
   console.log('%s App is running at http://localhost:%d in %s mode', chalk.green('✓'), app.get('port'), app.get('env'));
   console.log('  Press CTRL-C to stop\n');
 });
 
 module.exports = app;
+
+// docker run --name=blackhole -e PUID=6969 -e PGID=666 -e TZ=Europe/London -e USER=admin -e PASS=TannerJones -p 666:9091 -p 51413:51413 -p 51413:51413/udp -v ~/torrent/log:/config -v ~/torrent/downloads:/downloads -v ~/torrent/watch:/watch --restart unless-stopped linuxserver/transmission
+// docker run -d -p 6969:80 --name=cloud -v ~/cloud:/var/www/html/data --restart unless-stopped nextcloud
