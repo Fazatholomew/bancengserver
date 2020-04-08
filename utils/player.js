@@ -17,17 +17,21 @@ class Player {
 }
 
 const turnGenerator = (userId, people) => {
+  console.log(userId, people);
   const finalTurn = [];
-  const length = people.length;
+  const playersLength = people.length - 1;
   finalTurn.push(userId);
-  const userIndex = finalTurn.indexOf(userId);
-  let current = userIndex + 1;
-  while (current !== userIndex) {
-    if (current > length) current = 0;
-    finalTurn.push(people[current]);
-    current++;
+  const userIndex = people.indexOf(userId);
+  if (userIndex > -1) {
+    let current = userIndex + 1;
+    while (current !== userIndex) {
+      finalTurn.push(people[current]);
+      current++;
+      if (current > playersLength) current = 0;
+    }
+    return finalTurn;
   }
-  return finalTurn;
+  return [];
 };
 
 module.exports = { Player, turnGenerator };

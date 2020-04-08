@@ -28,7 +28,7 @@ dotenv.config({ path: '.env.example' });
  * Socket Controllers (socket event handlers).
  */
 
-const { enterRoom } = require('./controllers/room');
+const { enterRoom, startGame, lawan } = require('./controllers/room');
 
 /**
  * Controllers (route handlers).
@@ -128,7 +128,18 @@ app.use('/', express.static(path.join(__dirname, 'public'), { maxAge: 3155760000
 io.on('connect', (socket) => {
   console.log('someone connect.');
   socket.on('enterRoom', (payload, callback) => {
+    // User wants to enter given roomId
     enterRoom({ payload, callback, socket });
+  });
+
+  socket.on('startGame', (payload, callback) => {
+    // User wants to start a game in a spesific room
+    startGame({ payload, callback, socket });
+  });
+
+  socket.on('lawan', (payload, callback) => {
+    // User wants to start a game in a spesific room
+    lawan({ payload, callback, socket });
   });
 });
 
