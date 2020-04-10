@@ -28,12 +28,13 @@ dotenv.config({ path: '.env.example' });
  * Socket Controllers (socket event handlers).
  */
 
-const { enterRoom, startGame, lawan } = require('./controllers/room');
+const { roomSocketEventHandler } = require('./controllers/room');
 
 /**
  * Controllers (route handlers).
  */
 
+const { roomRouter } = require('./controllers/room');
 
 /**
  * API keys and Passport configuration.
@@ -86,7 +87,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(flash());
-app.use((req, res, next) => {
+/* app.use((req, res, next) => {
   if (req.path === '/api/upload') {
     // Multer multipart/form-data handling needs to occur before the Lusca CSRF check.
     next();
@@ -95,7 +96,7 @@ app.use((req, res, next) => {
   }
 });
 app.use(lusca.xframe('SAMEORIGIN'));
-app.use(lusca.xssProtection(true));
+app.use(lusca.xssProtection(true)); */
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.locals.user = req.user;
@@ -115,11 +116,18 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'http://localhost:3000'); // update to match the domain you will make the request from
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
 app.use('/', express.static(path.join(__dirname, 'public'), { maxAge: 31557600000 }));
 
 /**
  * Primary app routes.
  */
+
+app.use('/room', roomRouter);
 
 /**
  * Socket.io events.
@@ -127,7 +135,7 @@ app.use('/', express.static(path.join(__dirname, 'public'), { maxAge: 3155760000
 
 io.on('connect', (socket) => {
   console.log('someone connect.');
-  socket.on('enterRoom', (payload, callback) => {
+  /* socket.on('enterRoom', (payload, callback) => {
     // User wants to enter given roomId
     enterRoom({ payload, callback, socket });
   });
@@ -140,6 +148,15 @@ io.on('connect', (socket) => {
   socket.on('lawan', (payload, callback) => {
     // User wants to start a game in a spesific room
     lawan({ payload, callback, socket });
+  }); */
+  socket.on('room', (data, callback) => {
+    const { type, payload } = data;
+    roomSocketEventHandler({
+      type,
+      payload,
+      callback,
+      socket
+    });
   });
 });
 
