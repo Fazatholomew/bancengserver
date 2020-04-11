@@ -17,13 +17,13 @@ class Player {
 }
 
 const turnGenerator = (userId, people) => {
-  console.log(userId, people);
   const finalTurn = [];
   const playersLength = people.length - 1;
   finalTurn.push(userId);
   const userIndex = people.indexOf(userId);
   if (userIndex > -1) {
     let current = userIndex + 1;
+    if (current > playersLength) current = 0;
     while (current !== userIndex) {
       finalTurn.push(people[current]);
       current++;
