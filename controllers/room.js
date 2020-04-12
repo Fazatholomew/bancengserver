@@ -84,6 +84,7 @@ const roomSocketEventHandler = async ({
           const players = Object.keys(payloadData);
           const turnFirst = players.filter((player) => payloadData[player]['3 Diamond'])[0]; // return userId who has 3 diamond
           const currentOrder = turnGenerator(turnFirst, players);
+          console.log(payloadData[turnFirst]);
           const roomObj = fetchedRoom.toObject();
           const gameState = roomObj.gameState[0];
           const playersWithCards = gameState.players.map((player) => {
@@ -114,17 +115,24 @@ const roomSocketEventHandler = async ({
         // Change the table cards
         // Reduce user's card
         // Update database
-        if (fetchedRoom.gameState[0].currentTurn === userId.toString()) {
+        if (fetchedRoom.gameState[0].currentTurn === userId) {
           const { cards } = payload;
           const roomObject = fetchedRoom.toObject();
           const { gameState } = roomObject;
           const latestGameState = gameState[0];
           const round = latestGameState.round + 1;
           let counter = 0;
-          counter += round;
-          while (!latestGameState.players[round].isCuss) {
+          counter += round % roomObject.currentOrder.length;
+          const isCussPlayers = {};
+          latestGameState.players.forEach((player) => {
+            isCussPlayers[player.userId] = player.isCuss;
+          });
+          while (true) { // eslint-disable-line
+            if (!isCussPlayers[latestGameState.players[counter].userId] && roomObject.currentOrder[counter] !== userId) {
+              break;
+            }
             counter++;
-            counter %= roomObject.currentOrder.length;
+            counter %= latestGameState.players.length;
           }
           const currentTurn = roomObject.currentOrder[counter];
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
@@ -147,35 +155,67 @@ const roomSocketEventHandler = async ({
         break;
 
       case 'CUSS':
+        // Player doesn't want to play
+        // add cussCounter
+        // turn player isCuss to true
         if (userId) {
+          console.log('cuss ing');
           const roomObject = fetchedRoom.toObject();
           const { gameState } = roomObject;
           const latestGameState = gameState[0];
           const round = latestGameState.round + 1;
           let counter = 0;
-          counter += round;
-          while (!latestGameState.players[round].isCuss) {
+          let table = [...latestGameState.playingCards];
+          counter += round % roomObject.currentOrder.length;
+          const isCussPlayers = {};
+          latestGameState.players.forEach((player) => {
+            isCussPlayers[player.userId] = player.isCuss;
+          });
+          while (true) { // eslint-disable-line
+            if (!isCussPlayers[latestGameState.players[counter].userId] && roomObject.currentOrder[counter] !== userId) {
+              break;
+            }
             counter++;
-            counter %= roomObject.currentOrder.length;
+            counter %= latestGameState.players.length;
           }
           const currentTurn = roomObject.currentOrder[counter];
-          if (roomObject.cussCounter === roomObject.people.length - 1) {
-            
-          }
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
           const others = latestGameState.players.filter((player) => player.userId !== userId);
-          const newGameState = {
-            ...gameState,
-            currentTurn: turnFirst,
-            players: playersWithCards
-          };
-          newRoom = {
-            ...roomObj,
-            gameState: [newGameState, ...roomObj.gameState],
-            currentOrder,
-            isPlaying: true
-          };
+          if (latestGameState.cussCounter === roomObject.people.length - 2) {
+            console.log('all people cuss');
+            table = [];
+            const modifiedOthers = others.map((player) => ({ ...player, isCuss: false }));
+            const newGameState = {
+              ...latestGameState,
+              currentTurn,
+              players: [user, ...modifiedOthers],
+              playingCards: table,
+              cussCounter: 0,
+              round
+            };
+            newRoom = {
+              ...roomObject,
+              gameState: [newGameState, ...roomObject.gameState],
+            };
+          } else {
+            console.log('not everyone cuss');
+            user.isCuss = true;
+            const newGameState = {
+              ...latestGameState,
+              currentTurn,
+              players: [user, ...others],
+              playingCards: table,
+              cussCounter: latestGameState.cussCounter + 1,
+              round
+            };
+            newRoom = {
+              ...roomObject,
+              gameState: [newGameState, ...roomObject.gameState],
+            };
+          }
+          console.log(currentTurn, latestGameState.players.filter((player) => player.userId === currentTurn)[0]);
         }
+        break;
 
       default:
         error = 'Type doesn\'t match anything';
@@ -185,13 +225,14 @@ const roomSocketEventHandler = async ({
   } else {
     error = 'Room doesn\'t exist';
   }
-
+  console.log('after switch');
   if (error) {
     // if there is an error pass execute callback with error
     callback({ error });
   } else {
     // save changes
     if (newRoom) {
+      console.log('omiting new update');
       try {
         fetchedRoom.overwrite(newRoom);
         await fetchedRoom.save();
@@ -218,6 +259,7 @@ const roomSocketEventHandler = async ({
 const createRoom = async (req, res, next) => {
   // Create a new room based on current date string
   // return { roomId }
+  console.log('creating new room');
   const hash = crypto.createHash('md5');
   hash.update(new Date().toString());
   let wannaBeId = hash.digest('hex').slice(0, 10);
