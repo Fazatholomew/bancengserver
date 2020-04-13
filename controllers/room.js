@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const express = require('express');
 const Room = require('../models/Room');
 const { turnGenerator } = require('../utils/player');
+const { countScore } = require('../utils/engine');
 const print = require('../utils/logging');
 
 const roomRouter = express.Router();
@@ -84,7 +85,6 @@ const roomSocketEventHandler = async ({
           const players = Object.keys(payloadData);
           const turnFirst = players.filter((player) => payloadData[player]['3 Diamond'])[0]; // return userId who has 3 diamond
           const currentOrder = turnGenerator(turnFirst, players);
-          console.log(payloadData[turnFirst]);
           const roomObj = fetchedRoom.toObject();
           const gameState = roomObj.gameState[0];
           const playersWithCards = gameState.players.map((player) => {
@@ -127,14 +127,21 @@ const roomSocketEventHandler = async ({
           latestGameState.players.forEach((player) => {
             isCussPlayers[player.userId] = player.isCuss;
           });
+          const _buffer = [];
+          console.log('CurrentOrder', roomObject.currentOrder);
           while (true) { // eslint-disable-line
-            if (!isCussPlayers[latestGameState.players[counter].userId] && roomObject.currentOrder[counter] !== userId) {
+            if (!isCussPlayers[roomObject.currentOrder[counter]]
+              && roomObject.currentOrder[counter] !== userId) {
+              console.log('now', roomObject.currentOrder[counter]);
               break;
             }
+            _buffer.push(roomObject.currentOrder[counter]);
+            console.log('buffer', _buffer);
             counter++;
             counter %= latestGameState.players.length;
           }
           const currentTurn = roomObject.currentOrder[counter];
+          console.log('currentTurn', currentTurn);
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
           const others = latestGameState.players.filter((player) => player.userId !== userId);
           const userCards = user.cards.filter((card) => !cards.includes(card));
@@ -145,6 +152,7 @@ const roomSocketEventHandler = async ({
             playingCards: cards,
             currentTurn,
             round,
+            lastLawan: userId
           };
           newRoom = {
             ...roomObject,
@@ -164,21 +172,7 @@ const roomSocketEventHandler = async ({
           const { gameState } = roomObject;
           const latestGameState = gameState[0];
           const round = latestGameState.round + 1;
-          let counter = 0;
           let table = [...latestGameState.playingCards];
-          counter += round % roomObject.currentOrder.length;
-          const isCussPlayers = {};
-          latestGameState.players.forEach((player) => {
-            isCussPlayers[player.userId] = player.isCuss;
-          });
-          while (true) { // eslint-disable-line
-            if (!isCussPlayers[latestGameState.players[counter].userId] && roomObject.currentOrder[counter] !== userId) {
-              break;
-            }
-            counter++;
-            counter %= latestGameState.players.length;
-          }
-          const currentTurn = roomObject.currentOrder[counter];
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
           const others = latestGameState.players.filter((player) => player.userId !== userId);
           if (latestGameState.cussCounter === roomObject.people.length - 2) {
@@ -187,10 +181,11 @@ const roomSocketEventHandler = async ({
             const modifiedOthers = others.map((player) => ({ ...player, isCuss: false }));
             const newGameState = {
               ...latestGameState,
-              currentTurn,
+              currentTurn: latestGameState.lastLawan,
               players: [user, ...modifiedOthers],
               playingCards: table,
               cussCounter: 0,
+              lastLawan: '',
               round
             };
             newRoom = {
@@ -199,6 +194,28 @@ const roomSocketEventHandler = async ({
             };
           } else {
             console.log('not everyone cuss');
+            let counter = 0;
+            counter += round % roomObject.currentOrder.length;
+            const isCussPlayers = {};
+            latestGameState.players.forEach((player) => {
+              isCussPlayers[player.userId] = player.isCuss;
+            });
+            const _buffer = [];
+            console.log('CurrentOrder', roomObject.currentOrder);
+            while (true) { // eslint-disable-line
+              if (!isCussPlayers[roomObject.currentOrder[counter]]
+                && roomObject.currentOrder[counter] !== userId
+                && latestGameState.lastLawan !== roomObject.currentOrder[counter]) {
+                console.log('now', roomObject.currentOrder[counter]);
+                break;
+              }
+              _buffer.push(roomObject.currentOrder[counter]);
+              console.log('buffer', _buffer);
+              counter++;
+              counter %= latestGameState.players.length;
+            }
+            const currentTurn = roomObject.currentOrder[counter];
+            console.log('currentTurn', currentTurn);
             user.isCuss = true;
             const newGameState = {
               ...latestGameState,
@@ -213,7 +230,47 @@ const roomSocketEventHandler = async ({
               gameState: [newGameState, ...roomObject.gameState],
             };
           }
-          console.log(currentTurn, latestGameState.players.filter((player) => player.userId === currentTurn)[0]);
+        }
+        break;
+
+      case 'NUTUP':
+        // Player has won a game
+        // Reset table
+        // isPlaying is false
+        // Update users' score
+        // add game
+        // round = 0
+        if (userId) {
+          const roomObject = fetchedRoom.toObject();
+          const { gameState } = roomObject;
+          const latestGameState = gameState[0];
+          const scores = countScore(latestGameState.players, userId);
+          const players = latestGameState.players.map((player) => ({
+            ...player,
+            score: player.score + scores[player.userId],
+            isCuss: false,
+            cards: []
+          }));
+          const newGameState = {
+            ...latestGameState,
+            currentTurn: userId,
+            players,
+            playingCards: [],
+            cussCounter: 0,
+            round: 0,
+            lastLawan: '',
+            game: latestGameState.game + 1
+          };
+          const currentOrder = turnGenerator(userId, players);
+          newRoom = {
+            ...roomObject,
+            currentOrder,
+            isPlaying: false,
+            gameState: [newGameState, ...roomObject.gameState],
+          };
+          console.log(scores);
+        } else {
+          error = 'No UserId';
         }
         break;
 
@@ -287,7 +344,8 @@ const createRoom = async (req, res, next) => {
     game: 0,
     round: 0,
     winners: [],
-    cussCounter: 0
+    cussCounter: 0,
+    lastLawan: ''
   };
 
   const room = new Room({

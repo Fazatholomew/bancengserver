@@ -151,7 +151,6 @@ io.on('connect', (socket) => {
   }); */
   socket.on('room', (data, callback) => {
     const { type, payload } = JSON.parse(data);
-    console.log(type, payload);
     roomSocketEventHandler({
       type,
       payload,
