@@ -100,14 +100,14 @@ const bagiin = (players, deck, start = '1') => {
 
 const countScore = (players, winnerId) => {
   const scores = {};
-  players.foreach((player) => {
+  players.forEach((player) => {
     let score = 0;
-    if (players.userId === winnerId) {
-      switch (players.cards.length) {
+    if (player.userId === winnerId) {
+      switch (player.cards.length) {
         case 1:
-          if (players.cards[0] === '3 Diamond') {
+          if (player.cards[0] === '3 Diamond') {
             score -= 35;
-          } else if (['2 Diamond', '2 Club', '2 Heart', '2 Spade'].includes(players.cards[0])) {
+          } else if (['2 Diamond', '2 Club', '2 Heart', '2 Spade'].includes(player.cards[0])) {
             score -= 10;
           } else {
             score -= 5;
@@ -115,7 +115,7 @@ const countScore = (players, winnerId) => {
           break;
 
         case 2:
-          if (['2 Diamond', '2 Club', '2 Heart', '2 Spade'].includes(players.cards[0])) {
+          if (['2 Diamond', '2 Club', '2 Heart', '2 Spade'].includes(player.cards[0])) {
             score -= 10;
           } else {
             score -= 5;
@@ -127,7 +127,7 @@ const countScore = (players, winnerId) => {
       }
     } else {
       let counter2 = 0;
-      player.cards.foreach((card) => {
+      player.cards.forEach((card) => {
         if (['2 Diamond', '2 Club', '2 Heart', '2 Spade'].includes(card)) {
           counter2++;
           score += 5;
@@ -135,12 +135,12 @@ const countScore = (players, winnerId) => {
           score++;
         }
       });
-      if (players.cards.length > 8) {
+      if (player.cards.length > 8) {
         if (counter2 === 0) {
           score *= 2;
         }
       }
-      if (players.cards.length === 1 && players.cards[0] === '3 Diamond') {
+      if (player.cards.length === 1 && player.cards[0] === '3 Diamond') {
         score *= 35;
       }
     }

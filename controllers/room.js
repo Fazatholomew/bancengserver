@@ -79,14 +79,22 @@ const roomSocketEventHandler = async ({
         // Start a game
         // Get players' cards from front-end
         // update database
-        if (fetchedRoom.gameState[0].round === 0) {
-          // get person who has 3 diamond
+        if (!fetchedRoom.isPlaying) {
           const payloadData = payload.cards;
           const players = Object.keys(payloadData);
-          const turnFirst = players.filter((player) => payloadData[player]['3 Diamond'])[0]; // return userId who has 3 diamond
-          const currentOrder = turnGenerator(turnFirst, players);
           const roomObj = fetchedRoom.toObject();
           const gameState = roomObj.gameState[0];
+          let turnFirst;
+          let currentOrder;
+          if (fetchedRoom.gameState[0].game === 0) {
+            // get person who has 3 diamond
+            [turnFirst] = players.filter((player) => payloadData[player]['3 Diamond']); // return userId who has 3 diamond
+            currentOrder = turnGenerator(turnFirst, roomObj.people);
+          } else {
+            currentOrder = turnGenerator(gameState.winners[0], roomObj.currentOrder);
+            [turnFirst] = currentOrder;
+            // find winner and starts from there;
+          }
           const playersWithCards = gameState.players.map((player) => {
             const cards = Object.keys(payloadData[player.userId]);
             return {
@@ -105,8 +113,6 @@ const roomSocketEventHandler = async ({
             currentOrder,
             isPlaying: true
           };
-        } else {
-          // find winner and starts from there;
         }
         break;
 
@@ -131,7 +137,8 @@ const roomSocketEventHandler = async ({
           console.log('CurrentOrder', roomObject.currentOrder);
           while (true) { // eslint-disable-line
             if (!isCussPlayers[roomObject.currentOrder[counter]]
-              && roomObject.currentOrder[counter] !== userId) {
+              && roomObject.currentOrder[counter] !== userId
+              && latestGameState.lastLawan !== roomObject.currentOrder[counter]) {
               console.log('now', roomObject.currentOrder[counter]);
               break;
             }
@@ -259,12 +266,11 @@ const roomSocketEventHandler = async ({
             cussCounter: 0,
             round: 0,
             lastLawan: '',
+            winners: [userId, ...latestGameState.winners],
             game: latestGameState.game + 1
           };
-          const currentOrder = turnGenerator(userId, players);
           newRoom = {
             ...roomObject,
-            currentOrder,
             isPlaying: false,
             gameState: [newGameState, ...roomObject.gameState],
           };
