@@ -4,10 +4,10 @@ numbers.forEach((number, i) => {
   numberValues[number] = i;
 });
 const faces = {
-  Diamond: '♦️',
-  Club: '♣️',
-  Heart: '♥️',
-  Spade: '♠️',
+  Diamond: '♦',
+  Club: '♧',
+  Heart: '♥',
+  Spade: '♤',
 };
 const facesRange = {
   Diamond: 0,

@@ -1,7 +1,9 @@
-/**
+/*
  * Module dependencies.
  */
 const express = require('express');
+const http = require('http').Server;
+const socket = require('socket.io');
 const compression = require('compression');
 const session = require('express-session');
 const bodyParser = require('body-parser');
@@ -16,9 +18,6 @@ const path = require('path');
 const mongoose = require('mongoose');
 const passport = require('passport');
 const expressStatusMonitor = require('express-status-monitor');
-const multer = require('multer');
-
-const upload = multer({ dest: path.join(__dirname, 'uploads') });
 
 /**
  * Load environment variables from .env file, where API keys and passwords are configured.
@@ -26,22 +25,28 @@ const upload = multer({ dest: path.join(__dirname, 'uploads') });
 dotenv.config({ path: '.env.example' });
 
 /**
+ * Socket Controllers (socket event handlers).
+ */
+
+const { roomSocketEventHandler } = require('./controllers/room');
+
+/**
  * Controllers (route handlers).
  */
-const homeController = require('./controllers/home');
-const userController = require('./controllers/user');
-const apiController = require('./controllers/api');
-const contactController = require('./controllers/contact');
+
+const { roomRouter } = require('./controllers/room');
 
 /**
  * API keys and Passport configuration.
  */
-const passportConfig = require('./config/passport');
+// const passportConfig = require('./config/passport');
 
 /**
  * Create Express server.
  */
 const app = express();
+const server = http(app);
+const io = socket(server);
 
 /**
  * Connect to MongoDB.
@@ -64,12 +69,8 @@ app.set('host', process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0');
 app.set('port', process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080);
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'pug');
-app.use(expressStatusMonitor());
+app.use(expressStatusMonitor({ websocket: io, port: app.get('port') }));
 app.use(compression());
-app.use(sass({
-  src: path.join(__dirname, 'public'),
-  dest: path.join(__dirname, 'public')
-}));
 app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -86,7 +87,7 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(flash());
-app.use((req, res, next) => {
+/* app.use((req, res, next) => {
   if (req.path === '/api/upload') {
     // Multer multipart/form-data handling needs to occur before the Lusca CSRF check.
     next();
@@ -95,7 +96,7 @@ app.use((req, res, next) => {
   }
 });
 app.use(lusca.xframe('SAMEORIGIN'));
-app.use(lusca.xssProtection(true));
+app.use(lusca.xssProtection(true)); */
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.locals.user = req.user;
@@ -115,30 +116,50 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'http://localhost:3000'); // update to match the domain you will make the request from
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+});
 app.use('/', express.static(path.join(__dirname, 'public'), { maxAge: 31557600000 }));
 
 /**
  * Primary app routes.
  */
-app.get('/', homeController.index);
-app.get('/login', userController.getLogin);
-app.post('/login', userController.postLogin);
-app.get('/logout', userController.logout);
-app.get('/forgot', userController.getForgot);
-app.post('/forgot', userController.postForgot);
-app.get('/reset/:token', userController.getReset);
-app.post('/reset/:token', userController.postReset);
-app.get('/signup', userController.getSignup);
-app.post('/signup', userController.postSignup);
-app.get('/contact', contactController.getContact);
-app.post('/contact', contactController.postContact);
-app.get('/account/verify', passportConfig.isAuthenticated, userController.getVerifyEmail);
-app.get('/account/verify/:token', passportConfig.isAuthenticated, userController.getVerifyEmailToken);
-app.get('/account', passportConfig.isAuthenticated, userController.getAccount);
-app.post('/account/profile', passportConfig.isAuthenticated, userController.postUpdateProfile);
-app.post('/account/password', passportConfig.isAuthenticated, userController.postUpdatePassword);
-app.post('/account/delete', passportConfig.isAuthenticated, userController.postDeleteAccount);
-app.get('/account/unlink/:provider', passportConfig.isAuthenticated, userController.getOauthUnlink);
+
+app.use('/room', roomRouter);
+
+/**
+ * Socket.io events.
+ */
+
+io.on('connect', (socket) => {
+  console.log('someone connect.');
+  /* socket.on('enterRoom', (payload, callback) => {
+    // User wants to enter given roomId
+    enterRoom({ payload, callback, socket });
+  });
+
+  socket.on('startGame', (payload, callback) => {
+    // User wants to start a game in a spesific room
+    startGame({ payload, callback, socket });
+  });
+
+  socket.on('lawan', (payload, callback) => {
+    // User wants to start a game in a spesific room
+    lawan({ payload, callback, socket });
+  }); */
+  socket.on('room', (data, callback) => {
+    const { type, payload } = JSON.parse(data);
+    roomSocketEventHandler({
+      type,
+      payload,
+      callback,
+      socket
+    });
+  });
+  socket.on('disconnect', () => console.log('going out'));
+});
 
 /**
  * Error Handler.
@@ -156,9 +177,12 @@ if (process.env.NODE_ENV === 'development') {
 /**
  * Start Express server.
  */
-app.listen(app.get('port'), () => {
+server.listen(app.get('port'), () => {
   console.log('%s App is running at http://localhost:%d in %s mode', chalk.green('✓'), app.get('port'), app.get('env'));
   console.log('  Press CTRL-C to stop\n');
 });
 
 module.exports = app;
+
+// docker run --name=blackhole -e PUID=6969 -e PGID=666 -e TZ=Europe/London -e USER=admin -e PASS=TannerJones -p 666:9091 -p 51413:51413 -p 51413:51413/udp -v ~/torrent/log:/config -v ~/torrent/downloads:/downloads -v ~/torrent/watch:/watch --restart unless-stopped linuxserver/transmission
+// docker run -d -p 6969:80 --name=cloud -v ~/cloud:/var/www/html/data --restart unless-stopped nextcloud
