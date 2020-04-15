@@ -156,6 +156,7 @@ const roomSocketEventHandler = async ({
             ...latestGameState,
             players: [...others, user],
             playingCards: cards,
+            round: latestGameState.round + 1,
             currentTurn,
             lastLawan: userId
           };
@@ -190,6 +191,7 @@ const roomSocketEventHandler = async ({
               players: [user, ...modifiedOthers],
               playingCards: table,
               cussCounter: 0,
+              round: latestGameState.round + 1,
               lastLawan: '',
             };
             newRoom = {
@@ -225,6 +227,7 @@ const roomSocketEventHandler = async ({
               ...latestGameState,
               currentTurn,
               players: [user, ...others],
+              round: latestGameState.round + 1,
               playingCards: table,
               cussCounter: latestGameState.cussCounter + 1,
             };
@@ -260,6 +263,7 @@ const roomSocketEventHandler = async ({
             players,
             playingCards: [],
             cussCounter: 0,
+            round: 0,
             lastLawan: '',
             winners: [userId, ...latestGameState.winners],
             game: latestGameState.game + 1
@@ -342,6 +346,7 @@ const createRoom = async (req, res, next) => {
     playingCards: [
     ],
     currentTurn: '',
+    round: 0,
     game: 0,
     winners: [],
     cussCounter: 0,
