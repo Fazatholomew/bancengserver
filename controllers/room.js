@@ -321,6 +321,7 @@ const roomSocketEventHandler = async ({
 const createRoom = async (req, res, next) => {
   // Create a new room based on current date string
   // return { roomId }
+  const { userId } = req;
   console.log('creating new room');
   const hash = crypto.createHash('md5');
   hash.update(new Date().toString());
@@ -330,7 +331,7 @@ const createRoom = async (req, res, next) => {
     fetchedRoom = await Room.findOne({ roomId: wannaBeId });
   } catch (err) {
     print('error', `Error when getting Room from Database with id:${wannaBeId}\n${err}`);
-    next(err);
+    res.sendStatus(500);
   }
 
   if (fetchedRoom) {
@@ -359,6 +360,7 @@ const createRoom = async (req, res, next) => {
     gameState: [newGameState],
     currentOrder: [],
     isPlaying: false,
+    creator: userId
   });
 
   try {
@@ -368,7 +370,7 @@ const createRoom = async (req, res, next) => {
     next(err);
   }
 
-  res.json({ roomId: wannaBeId });
+  res.status(200).json({ roomId: wannaBeId });
 };
 
 roomRouter.post('/', createRoom);

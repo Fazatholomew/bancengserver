@@ -6,6 +6,7 @@ const roomSchema = new mongoose.Schema({
   gameState: Array,
   currentOrder: Array,
   isPlaying: Boolean,
+  creator: String
 }, { timestamps: true });
 
 const Room = mongoose.model('Room', roomSchema);

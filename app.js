@@ -10,14 +10,14 @@ const bodyParser = require('body-parser');
 const logger = require('morgan');
 const chalk = require('chalk');
 const errorHandler = require('errorhandler');
-const lusca = require('lusca');
 const dotenv = require('dotenv');
 const MongoStore = require('connect-mongo')(session);
-const flash = require('express-flash');
 const path = require('path');
 const mongoose = require('mongoose');
-const passport = require('passport');
+const cors = require('cors');
 const expressStatusMonitor = require('express-status-monitor');
+
+const { isAuthenticated } = require('./utils/auth');
 
 /**
  * Load environment variables from .env file, where API keys and passwords are configured.
@@ -35,6 +35,7 @@ const { roomSocketEventHandler } = require('./controllers/room');
  */
 
 const { roomRouter } = require('./controllers/room');
+const { authRouter } = require('./controllers/auth');
 
 /**
  * API keys and Passport configuration.
@@ -84,50 +85,15 @@ app.use(session({
     autoReconnect: true,
   })
 }));
-app.use(passport.initialize());
-app.use(passport.session());
-app.use(flash());
-/* app.use((req, res, next) => {
-  if (req.path === '/api/upload') {
-    // Multer multipart/form-data handling needs to occur before the Lusca CSRF check.
-    next();
-  } else {
-    lusca.csrf()(req, res, next);
-  }
-});
-app.use(lusca.xframe('SAMEORIGIN'));
-app.use(lusca.xssProtection(true)); */
 app.disable('x-powered-by');
-app.use((req, res, next) => {
-  res.locals.user = req.user;
-  next();
-});
-app.use((req, res, next) => {
-  // After successful login, redirect back to the intended page
-  if (!req.user
-    && req.path !== '/login'
-    && req.path !== '/signup'
-    && !req.path.match(/^\/auth/)
-    && !req.path.match(/\./)) {
-    req.session.returnTo = req.originalUrl;
-  } else if (req.user
-    && (req.path === '/account' || req.path.match(/^\/api/))) {
-    req.session.returnTo = req.originalUrl;
-  }
-  next();
-});
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:3000'); // update to match the domain you will make the request from
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  next();
-});
-app.use('/', express.static(path.join(__dirname, 'public'), { maxAge: 31557600000 }));
+app.use(cors());
 
 /**
  * Primary app routes.
  */
 
-app.use('/room', roomRouter);
+app.use('/room', isAuthenticated, roomRouter);
+app.use('/auth', authRouter);
 
 /**
  * Socket.io events.
@@ -135,20 +101,6 @@ app.use('/room', roomRouter);
 
 io.on('connect', (socket) => {
   console.log('someone connect.');
-  /* socket.on('enterRoom', (payload, callback) => {
-    // User wants to enter given roomId
-    enterRoom({ payload, callback, socket });
-  });
-
-  socket.on('startGame', (payload, callback) => {
-    // User wants to start a game in a spesific room
-    startGame({ payload, callback, socket });
-  });
-
-  socket.on('lawan', (payload, callback) => {
-    // User wants to start a game in a spesific room
-    lawan({ payload, callback, socket });
-  }); */
   socket.on('room', (data, callback) => {
     const { type, payload } = JSON.parse(data);
     roomSocketEventHandler({
@@ -170,7 +122,7 @@ if (process.env.NODE_ENV === 'development') {
 } else {
   app.use((err, req, res, next) => {
     console.error(err);
-    res.status(500).send('Server Error');
+    res.status(500);
   });
 }
 
