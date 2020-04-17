@@ -17,7 +17,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const expressStatusMonitor = require('express-status-monitor');
 
-const { isAuthenticated } = require('./utils/auth');
+const { isAuthenticated, socketAuthenticated } = require('./utils/auth');
+const { print } = require('./utils/logging');
 
 /**
  * Load environment variables from .env file, where API keys and passwords are configured.
@@ -100,15 +101,19 @@ app.use('/auth', authRouter);
  */
 
 io.on('connect', (socket) => {
-  console.log('someone connect.');
   socket.on('room', (data, callback) => {
-    const { type, payload } = JSON.parse(data);
-    roomSocketEventHandler({
-      type,
-      payload,
-      callback,
-      socket
-    });
+    const { type, token, payload } = JSON.parse(data);
+    const { error } = socketAuthenticated(token);
+    if (error) {
+      print('error', error);
+    } else {
+      roomSocketEventHandler({
+        type,
+        payload,
+        callback,
+        socket
+      });
+    }
   });
   socket.on('disconnect', () => console.log('going out'));
 });

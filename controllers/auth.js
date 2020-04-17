@@ -41,6 +41,7 @@ const logInUser = async (req, res) => {
   const { userId, password } = req.body;
   try {
     const user = await User.findOne({ userId: userId.toLowerCase() });
+    console.log(userId, password);
     if (user) {
       user.comparePassword(password, (err, isMatch) => {
         if (err) {
