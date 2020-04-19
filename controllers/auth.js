@@ -61,6 +61,8 @@ const logInUser = async (req, res) => {
           }
         }
       });
+    } else {
+      res.sendStatus(403);
     }
   } catch (err) {
     print('error', `Error when getting User from Database with id:${userId}\n${err}`);

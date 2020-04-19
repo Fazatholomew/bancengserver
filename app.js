@@ -18,7 +18,7 @@ const cors = require('cors');
 const expressStatusMonitor = require('express-status-monitor');
 
 const { isAuthenticated, socketAuthenticated } = require('./utils/auth');
-const { print } = require('./utils/logging');
+const print = require('./utils/logging');
 
 /**
  * Load environment variables from .env file, where API keys and passwords are configured.
@@ -104,6 +104,8 @@ io.on('connect', (socket) => {
   socket.on('room', (data, callback) => {
     const { type, token, payload } = JSON.parse(data);
     const { error } = socketAuthenticated(token);
+    console.log('error:', error);
+    console.log('token', token);
     if (error) {
       print('error', error);
     } else {

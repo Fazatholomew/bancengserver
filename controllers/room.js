@@ -318,7 +318,7 @@ const roomSocketEventHandler = async ({
   }
 };
 
-const createRoom = async (req, res, next) => {
+const createRoom = async (req, res) => {
   // Create a new room based on current date string
   // return { roomId }
   const { userId } = req;
@@ -365,20 +365,36 @@ const createRoom = async (req, res, next) => {
 
   try {
     room.save();
+    res.status(200).json({ roomId: wannaBeId });
   } catch (err) {
     print('error', `Error when creating Room with id: ${wannaBeId}\n${err}`);
-    next(err);
+    res.sendStatus(500);
   }
-
-  res.status(200).json({ roomId: wannaBeId });
 };
 
+const checkRoom = async (req, res) => {
+  // Check roomId if it exists and not full
+  const { roomId } = req.params;
+  let fetchedRoom;
+  try {
+    fetchedRoom = await Room.findOne({ roomId });
+  } catch (err) {
+    print('error', `Error when getting Room from Database with id:${roomId}\n${err}`);
+    res.sendStatus(500);
+  }
+
+  if (fetchedRoom) {
+    if (fetchedRoom.people.length < 4) {
+      res.sendStatus(200);
+    } else {
+      res.sendStatus(429);
+    }
+  } else {
+    res.sendStatus(404);
+  }
+};
+
+roomRouter.get('/:roomId', checkRoom);
 roomRouter.post('/', createRoom);
 
 module.exports = { roomRouter, roomSocketEventHandler };
-
-// docker run --name blackhole -v ~/torrent:/utorrent/data -v ~/torrent/setting:/utorrent/settings -p 666:8080 -p 6881:6881 --restart unless-stopped ekho/utorrent:latest
-// docker run --name blackhole -v ~/torrent/setting:/datadir -v ~/torrent:/media -p 666:8080 --restart unless-stopped dbarton/utorrent
-// docker run -d --name minecraft -v ~/minecraft:/data -e EULA=TRUE -e LEVEL_TYPE=default -e GAMEMODE=survival -e DIFFICULTY=easy -e SERVER_NAME=GO_BIG_OR_GO_HOMR -e ALLOW_CHEATS=true -p 19132:19132/udp itzg/minecraft-bedrock-server
-// docker run -d --name minecraft -v ~/minecraft:/data -e EULA=TRUE -e LEVEL_TYPE=default -e GAMEMODE=survival -p 19132:19132/udp itzg/minecraft-bedrock-server
-// docker run -d -v ~/mincraft:/data -e TYPE=PAPER -e VERSION=1.9.4 -p 25565:25565 -e EULA=TRUE --name minecraft itzg/minecraft-server --noconsole
