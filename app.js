@@ -144,4 +144,5 @@ server.listen(app.get('port'), () => {
 module.exports = app;
 
 // docker run --name=blackhole -e PUID=6969 -e PGID=666 -e TZ=Europe/London -e USER=admin -e PASS=TannerJones -p 666:9091 -p 51413:51413 -p 51413:51413/udp -v ~/torrent/log:/config -v ~/torrent/downloads:/downloads -v ~/torrent/watch:/watch --restart unless-stopped linuxserver/transmission
-// docker run -d -p 6969:80 --name=cloud -v ~/cloud:/var/www/html/data --restart unless-stopped nextcloud
+// docker run -d -p 6969:80 --name=cloud -v /mnt/cloud/data:/var/www/html/ -v /mnt/cloud/database:/var/lib/mysql --restart unless-stopped nextcloud
+// /dev/disk/by-uuid/5E9C-DAC0
