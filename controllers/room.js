@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const Room = require('../models/Room');
+const User = require('../models/User');
 const { turnGenerator } = require('../utils/player');
 const { countScore } = require('../utils/engine');
 const print = require('../utils/logging');
@@ -29,6 +30,9 @@ const roomSocketEventHandler = async ({
   let newRoom;
   let error = '';
   if (fetchedRoom) {
+    const roomObject = fetchedRoom.toObject();
+    const { gameState } = roomObject;
+    const latestGameState = gameState[0];
     switch (type) {
       // Switch of different events
       case 'ENTER ROOM':
@@ -40,9 +44,12 @@ const roomSocketEventHandler = async ({
             /* eslint-disable */
             if (fetchedRoom.people.indexOf(userId) === -1) {
               // user is not in the room
-              const roomObject = fetchedRoom.toObject();
-              const { gameState, people } = roomObject;
-              const latestGameState = gameState[0];
+              try {
+                await User.updateOne({ userId }, { currentRoom: roomId});
+              } catch (err) {
+                print('error', `Error when getting User from Database with id:${userId}\n${err}`);
+              }
+
               const newGameState = {
                 ...latestGameState,
                 players: [
@@ -56,10 +63,13 @@ const roomSocketEventHandler = async ({
                   }
                 ],
               };
+              const people = [...roomObject.people, userId];
+              currentOrder = roomObject.currentOrder[0] ? turnGenerator(roomObject.currentOrder[0], people) : [];
               newRoom = {
                 ...roomObject,
                 people: [...people, userId],
-                gameState: [newGameState, ...gameState]
+                gameState: [newGameState, ...gameState],
+                currentOrder
                 // latest game state has 0 as its index
               };
               socket.join(roomId);
@@ -82,20 +92,18 @@ const roomSocketEventHandler = async ({
         if (!fetchedRoom.isPlaying) {
           const payloadData = payload.cards;
           const players = Object.keys(payloadData);
-          const roomObj = fetchedRoom.toObject();
-          const gameState = roomObj.gameState[0];
           let turnFirst;
           let currentOrder;
-          if (fetchedRoom.gameState[0].game === 0) {
+          if (latestGameState.game === 0) {
             // get person who has 3 diamond
             [turnFirst] = players.filter((player) => payloadData[player]['3 Diamond']); // return userId who has 3 diamond
-            currentOrder = turnGenerator(turnFirst, roomObj.people);
+            currentOrder = turnGenerator(turnFirst, roomObject.people);
           } else {
-            currentOrder = turnGenerator(gameState.winners[0], roomObj.currentOrder);
+            currentOrder = turnGenerator(latestGameState.winners[0], roomObject.currentOrder);
             [turnFirst] = currentOrder;
             // find winner and starts from there;
           }
-          const playersWithCards = gameState.players.map((player) => {
+          const playersWithCards = latestGameState.players.map((player) => {
             const cards = Object.keys(payloadData[player.userId]);
             return {
               ...player,
@@ -103,13 +111,13 @@ const roomSocketEventHandler = async ({
             };
           });
           const newGameState = {
-            ...gameState,
+            ...latestGameState,
             currentTurn: turnFirst,
             players: playersWithCards
           };
           newRoom = {
-            ...roomObj,
-            gameState: [newGameState, ...roomObj.gameState],
+            ...roomObject,
+            gameState: [newGameState, ...gameState],
             currentOrder,
             isPlaying: true
           };
@@ -123,9 +131,6 @@ const roomSocketEventHandler = async ({
         // Update database
         if (fetchedRoom.gameState[0].currentTurn === userId) {
           const { cards } = payload;
-          const roomObject = fetchedRoom.toObject();
-          const { gameState } = roomObject;
-          const latestGameState = gameState[0];
           const playerIndex = roomObject.currentOrder.indexOf(userId);
           let counter = 0;
           counter += playerIndex;
@@ -174,9 +179,6 @@ const roomSocketEventHandler = async ({
         // turn player isCuss to true
         if (userId) {
           console.log('cuss ing');
-          const roomObject = fetchedRoom.toObject();
-          const { gameState } = roomObject;
-          const latestGameState = gameState[0];
           const playerIndex = roomObject.currentOrder.indexOf(userId);
           let table = [...latestGameState.playingCards];
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
@@ -247,9 +249,6 @@ const roomSocketEventHandler = async ({
         // add game
         // round = 0
         if (userId) {
-          const roomObject = fetchedRoom.toObject();
-          const { gameState } = roomObject;
-          const latestGameState = gameState[0];
           const scores = countScore(latestGameState.players, userId);
           const players = latestGameState.players.map((player) => ({
             ...player,
@@ -276,6 +275,40 @@ const roomSocketEventHandler = async ({
           console.log(scores);
         } else {
           error = 'No UserId';
+        }
+        break;
+
+      case 'EXIT ROOM':
+        if (userId) {
+          try {
+            await User.updateOne({ userId }, { currentRoom: '' });
+          } catch (err) {
+            print('error', `Error when getting User from Database with id:${userId}\n${err}`);
+          }
+          const newPlayers = latestGameState.players.filter((player) => player.userId !== userId);
+          const players = newPlayers.map((player) => ({
+            ...player,
+            isCuss: false,
+            cards: [],
+          }));
+          const newGameState = {
+            ...latestGameState,
+            players,
+            playingCards: [],
+            cussCounter: 0,
+            round: 0,
+            lastLawan: '',
+          };
+          const people = roomObject.people.filter((id) => id !== userId);
+          const { winners } = latestGameState;
+          const currentTurn = winners[0] ? winners[0] !== userId ? winners[0] : people[0] : people[0]; // eslint-disable-line
+          newRoom = {
+            ...roomObject,
+            people,
+            isPlaying: false,
+            gameState: [newGameState, ...roomObject.gameState],
+            currentOrder: turnGenerator(currentTurn, people)
+          };
         }
         break;
 

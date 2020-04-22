@@ -43,24 +43,28 @@ const logInUser = async (req, res) => {
     const user = await User.findOne({ userId: userId.toLowerCase() });
     console.log(userId, password);
     if (user) {
-      user.comparePassword(password, (err, isMatch) => {
-        if (err) {
-          print('error', err);
-          res.sendStatus(500);
-        } else {
-          if (isMatch) { // eslint-disable-line
-            const { token, error } = generateToken({ userId });
-            if (error) {
-              print('error', err);
-              res.sendStatus(500);
-            } else {
-              res.status(200).json({ token });
-            }
+      if (!user.currentRoom) {
+        user.comparePassword(password, (err, isMatch) => {
+          if (err) {
+            print('error', err);
+            res.sendStatus(500);
           } else {
-            res.sendStatus(403);
+            if (isMatch) { // eslint-disable-line
+              const { token, error } = generateToken({ userId });
+              if (error) {
+                print('error', err);
+                res.sendStatus(500);
+              } else {
+                res.status(200).json({ token });
+              }
+            } else {
+              res.sendStatus(403);
+            }
           }
-        }
-      });
+        });
+      } else {
+        res.sendStatus(409);
+      }
     } else {
       res.sendStatus(403);
     }

@@ -101,6 +101,7 @@ app.use('/auth', authRouter);
  */
 
 io.on('connect', (socket) => {
+  let connInfo = {};
   socket.on('room', (data, callback) => {
     const { type, token, payload } = JSON.parse(data);
     const { error } = socketAuthenticated(token);
@@ -109,6 +110,13 @@ io.on('connect', (socket) => {
     if (error) {
       print('error', error);
     } else {
+      if (type === 'ENTER ROOM') {
+        connInfo = {
+          id: socket.id,
+          userId: payload.userId,
+          roomId: payload.roomId
+        };
+      }
       roomSocketEventHandler({
         type,
         payload,
@@ -117,7 +125,16 @@ io.on('connect', (socket) => {
       });
     }
   });
-  socket.on('disconnect', () => console.log('going out'));
+  socket.on('disconnect', (_, callback) => {
+    if (connInfo.userId) {
+      roomSocketEventHandler({
+        type: 'EXIT ROOM',
+        payload: connInfo,
+        callback,
+        socket
+      });
+    }
+  });
 });
 
 /**
