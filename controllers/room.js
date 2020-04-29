@@ -29,6 +29,7 @@ const roomSocketEventHandler = async ({
   }
   let newRoom;
   let error = '';
+  let title = '';
   if (fetchedRoom) {
     const roomObject = fetchedRoom.toObject();
     const { gameState } = roomObject;
@@ -63,15 +64,17 @@ const roomSocketEventHandler = async ({
                   }
                 ],
               };
-              const people = [...roomObject.people, userId];
+              const people = [userId, ...roomObject.people];
               currentOrder = roomObject.currentOrder[0] ? turnGenerator(roomObject.currentOrder[0], people) : [];
               newRoom = {
                 ...roomObject,
-                people: [...people, userId],
+                people,
                 gameState: [newGameState, ...gameState],
                 currentOrder
                 // latest game state has 0 as its index
               };
+              console.log(newRoom.people, newRoom.people.length);
+              title = newRoom.people.length < 4 ? `Min ${ 4 - newRoom.people.length}` : 'Kocok sok!';
               socket.join(roomId);
             } else {
               console.log(userId);
@@ -98,9 +101,11 @@ const roomSocketEventHandler = async ({
             // get person who has 3 diamond
             [turnFirst] = players.filter((player) => payloadData[player]['3 Diamond']); // return userId who has 3 diamond
             currentOrder = turnGenerator(turnFirst, roomObject.people);
+            title = 'Tiga Tempe Yo!';
           } else {
             currentOrder = turnGenerator(latestGameState.winners[0], roomObject.currentOrder);
             [turnFirst] = currentOrder;
+            title = `Jalan ${turnFirst} ajig!`;
             // find winner and starts from there;
           }
           const playersWithCards = latestGameState.players.map((player) => {
@@ -170,6 +175,7 @@ const roomSocketEventHandler = async ({
             gameState: [newGameState, ...gameState]
             // latest game state has 0 as its index
           };
+          title = `Jalan ${currentTurn} ajig!`;
         }
         break;
 
@@ -200,6 +206,7 @@ const roomSocketEventHandler = async ({
               ...roomObject,
               gameState: [newGameState, ...roomObject.gameState],
             };
+            title = `Culun semua, jalan ${latestGameState.lastLawan}!`;
           } else {
             console.log('not everyone cuss');
             let counter = 0;
@@ -237,6 +244,7 @@ const roomSocketEventHandler = async ({
               ...roomObject,
               gameState: [newGameState, ...roomObject.gameState],
             };
+            title = `Culun ${userId}, jalan ${currentTurn}!`;
           }
         }
         break;
@@ -272,6 +280,7 @@ const roomSocketEventHandler = async ({
             isPlaying: false,
             gameState: [newGameState, ...roomObject.gameState],
           };
+          title = 'NUTUP AJIG!';
           console.log(scores);
         } else {
           error = 'No UserId';
@@ -294,6 +303,7 @@ const roomSocketEventHandler = async ({
           const newGameState = {
             ...latestGameState,
             players,
+            game: newPlayers.length === 0 ? 0 : latestGameState.game,
             playingCards: [],
             cussCounter: 0,
             round: 0,
@@ -309,6 +319,7 @@ const roomSocketEventHandler = async ({
             gameState: [newGameState, ...roomObject.gameState],
             currentOrder: turnGenerator(currentTurn, people)
           };
+          title = `${userId} cabut, kocul`;
         }
         break;
 
@@ -335,9 +346,15 @@ const roomSocketEventHandler = async ({
         print('error', `Error when updating roomId: ${roomId}\n${err}`);
         callback({ error: err });
       }
+      const order = {};
+      newRoom.people.forEach((person) => {
+        order[person] = turnGenerator(person, newRoom.people).slice(1);
+      });
       const payload = JSON.stringify({
         room: {
-          ...newRoom,
+          title,
+          order,
+          isPlaying: newRoom.isPlaying,
           gameState: newRoom.gameState[0]
         }
       });
@@ -398,6 +415,7 @@ const createRoom = async (req, res) => {
 
   try {
     room.save();
+    console.log(room);
     res.status(200).json({ roomId: wannaBeId });
   } catch (err) {
     print('error', `Error when creating Room with id: ${wannaBeId}\n${err}`);
