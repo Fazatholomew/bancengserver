@@ -8,7 +8,6 @@ const authRouter = express.Router();
 const createUser = async (req, res) => {
   // Create user based on given userId
   // return signed token so user is logged in automatically
-  console.log(req.body);
   const { userId, password } = req.body;
   try {
     const user = await User.findOne({ userId: userId.toLowerCase() });
@@ -26,6 +25,7 @@ const createUser = async (req, res) => {
         print('error', error);
         res.sendStatus(500);
       } else {
+        print('access', `Created a new user: ${userId}`);
         res.status(200).json({ token });
       }
     }
@@ -33,6 +33,7 @@ const createUser = async (req, res) => {
     print('error', `Error when getting User from Database with id:${userId}\n${err}`);
     res.sendStatus(500);
   }
+  print('access', `IP: ${req.ip} tried to create a new user: ${userId}`);
 };
 
 const logInUser = async (req, res) => {
@@ -41,7 +42,6 @@ const logInUser = async (req, res) => {
   const { userId, password } = req.body;
   try {
     const user = await User.findOne({ userId: userId.toLowerCase() });
-    console.log(userId, password);
     if (user) {
       if (!user.currentRoom) {
         user.comparePassword(password, (err, isMatch) => {
@@ -55,6 +55,7 @@ const logInUser = async (req, res) => {
                 print('error', err);
                 res.sendStatus(500);
               } else {
+                print('access', `User ${userId} logged In.`);
                 res.status(200).json({ token });
               }
             } else {
@@ -72,6 +73,7 @@ const logInUser = async (req, res) => {
     print('error', `Error when getting User from Database with id:${userId}\n${err}`);
     res.sendStatus(500);
   }
+  print('access', `IP: ${req.ip} tried to login to ${userId}.`);
 };
 
 authRouter.post('/signup', createUser);

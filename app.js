@@ -23,7 +23,14 @@ const print = require('./utils/logging');
 /**
  * Load environment variables from .env file, where API keys and passwords are configured.
  */
-dotenv.config({ path: '.env.example' });
+print('', process.env.NODE_ENV);
+if (!process.env.NODE_ENV) {
+  // only use in development
+  print('', 'Configure ENV from .env file');
+  dotenv.config({ path: '.env.example' });
+}
+print('', process.env.NODE_ENV);
+
 
 /**
  * Socket Controllers (socket event handlers).
@@ -37,11 +44,6 @@ const { roomSocketEventHandler } = require('./controllers/room');
 
 const { roomRouter } = require('./controllers/room');
 const { authRouter } = require('./controllers/auth');
-
-/**
- * API keys and Passport configuration.
- */
-// const passportConfig = require('./config/passport');
 
 /**
  * Create Express server.
@@ -59,8 +61,8 @@ mongoose.set('useNewUrlParser', true);
 mongoose.set('useUnifiedTopology', true);
 mongoose.connect(process.env.MONGODB_URI);
 mongoose.connection.on('error', (err) => {
-  console.error(err);
-  console.log('%s MongoDB connection error. Please make sure MongoDB is running.', chalk.red('✗'));
+  print('error', err);
+  print('error', '%s MongoDB connection error. Please make sure MongoDB is running.', chalk.red('✗'));
   process.exit();
 });
 
@@ -86,7 +88,18 @@ app.use(session({
   })
 }));
 app.disable('x-powered-by');
-app.use(cors());
+const corsOptions = {
+  origin: process.env.FRONT_END_URL,
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+};
+
+if (process.env.NODE_ENV === 'development') {
+  // only use in development
+  app.use(cors());
+} else {
+  app.use(cors(corsOptions));
+}
+
 
 /**
  * Primary app routes.
@@ -100,40 +113,42 @@ app.use('/auth', authRouter);
  */
 
 io.on('connect', (socket) => {
-  let connInfo = {};
-  socket.on('room', (data, callback) => {
-    const { type, token, payload } = JSON.parse(data);
-    const { error } = socketAuthenticated(token);
-    console.log('error:', error);
-    console.log('token', token);
-    if (error) {
-      print('error', error);
-    } else {
-      if (type === 'ENTER ROOM') {
-        connInfo = {
-          id: socket.id,
-          userId: payload.userId,
-          roomId: payload.roomId
-        };
+  try {
+    let connInfo = {};
+    socket.on('room', (data, callback) => {
+      const { type, token, payload } = JSON.parse(data);
+      const { error } = socketAuthenticated(token);
+      if (error) {
+        print('error', error);
+      } else {
+        if (type === 'ENTER ROOM') {
+          connInfo = {
+            id: socket.id,
+            userId: payload.userId,
+            roomId: payload.roomId
+          };
+        }
+        roomSocketEventHandler({
+          type,
+          payload,
+          callback,
+          socket
+        });
       }
-      roomSocketEventHandler({
-        type,
-        payload,
-        callback,
-        socket
-      });
-    }
-  });
-  socket.on('disconnect', (_, callback) => {
-    if (connInfo.userId) {
-      roomSocketEventHandler({
-        type: 'EXIT ROOM',
-        payload: connInfo,
-        callback,
-        socket
-      });
-    }
-  });
+    });
+    socket.on('disconnect', (_, callback) => {
+      if (connInfo.userId) {
+        roomSocketEventHandler({
+          type: 'EXIT ROOM',
+          payload: connInfo,
+          callback,
+          socket
+        });
+      }
+    });
+  } catch (err) {
+    print('error', err);
+  }
 });
 
 /**
@@ -144,7 +159,7 @@ if (process.env.NODE_ENV === 'development') {
   app.use(errorHandler());
 } else {
   app.use((err, req, res, next) => {
-    console.error(err);
+    print('error', err);
     res.status(500);
   });
 }
@@ -153,12 +168,7 @@ if (process.env.NODE_ENV === 'development') {
  * Start Express server.
  */
 server.listen(app.get('port'), () => {
-  console.log('%s App is running at http://localhost:%d in %s mode', chalk.green('✓'), app.get('port'), app.get('env'));
-  console.log('  Press CTRL-C to stop\n');
+  print('', `${chalk.green('✓')} App is running at http://localhost:${app.get('port')} in ${app.get('env')} mode`);
 });
 
 module.exports = app;
-
-// docker run --name=blackhole -e PUID=6969 -e PGID=666 -e TZ=Europe/London -e USER=admin -e PASS=TannerJones -p 666:9091 -p 51413:51413 -p 51413:51413/udp -v ~/torrent/log:/config -v ~/torrent/downloads:/downloads -v ~/torrent/watch:/watch --restart unless-stopped linuxserver/transmission
-// docker run -d -p 6969:80 --name=cloud -v /mnt/cloud/data:/var/www/html/ -v /mnt/cloud/database:/var/lib/mysql --restart unless-stopped nextcloud
-// /dev/disk/by-uuid/5E9C-DAC0

@@ -73,12 +73,9 @@ const roomSocketEventHandler = async ({
                 currentOrder
                 // latest game state has 0 as its index
               };
-              console.log(newRoom.people, newRoom.people.length);
               title = newRoom.people.length < 4 ? `Min ${ 4 - newRoom.people.length}` : 'Kocok sok!';
               socket.join(roomId);
             } else {
-              console.log(userId);
-              console.log(fetchedRoom.people)
               error = 'You\'re already in the room';
             }
           }
@@ -144,20 +141,16 @@ const roomSocketEventHandler = async ({
             isCussPlayers[player.userId] = player.isCuss;
           });
           const _buffer = [];
-          console.log('CurrentOrder', roomObject.currentOrder);
           while (true) { // eslint-disable-line
             if (!isCussPlayers[roomObject.currentOrder[counter]]
               && roomObject.currentOrder[counter] !== userId) {
-              console.log('now', roomObject.currentOrder[counter]);
               break;
             }
             _buffer.push(roomObject.currentOrder[counter]);
-            console.log('buffer', _buffer);
             counter++;
             counter %= roomObject.currentOrder.length;
           }
           const currentTurn = roomObject.currentOrder[counter];
-          console.log('currentTurn', currentTurn);
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
           const others = latestGameState.players.filter((player) => player.userId !== userId);
           const userCards = user.cards.filter((card) => !cards.includes(card));
@@ -184,13 +177,11 @@ const roomSocketEventHandler = async ({
         // add cussCounter
         // turn player isCuss to true
         if (userId) {
-          console.log('cuss ing');
           const playerIndex = roomObject.currentOrder.indexOf(userId);
           let table = [...latestGameState.playingCards];
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
           const others = latestGameState.players.filter((player) => player.userId !== userId);
           if (latestGameState.cussCounter === roomObject.people.length - 2) {
-            console.log('all people cuss');
             table = [];
             const modifiedOthers = others.map((player) => ({ ...player, isCuss: false }));
             const newGameState = {
@@ -208,7 +199,6 @@ const roomSocketEventHandler = async ({
             };
             title = `Culun semua, jalan ${latestGameState.lastLawan}!`;
           } else {
-            console.log('not everyone cuss');
             let counter = 0;
             counter += playerIndex;
             const isCussPlayers = {};
@@ -216,21 +206,17 @@ const roomSocketEventHandler = async ({
               isCussPlayers[player.userId] = player.isCuss;
             });
             const _buffer = [];
-            console.log('CurrentOrder', roomObject.currentOrder);
             while (true) { // eslint-disable-line
               if (!isCussPlayers[roomObject.currentOrder[counter]]
                 && roomObject.currentOrder[counter] !== userId
                 && latestGameState.lastLawan !== roomObject.currentOrder[counter]) {
-                console.log('now', roomObject.currentOrder[counter]);
                 break;
               }
               _buffer.push(roomObject.currentOrder[counter]);
-              console.log('buffer', _buffer);
               counter++;
               counter %= roomObject.currentOrder.length;
             }
             const currentTurn = roomObject.currentOrder[counter];
-            console.log('currentTurn', currentTurn);
             user.isCuss = true;
             const newGameState = {
               ...latestGameState,
@@ -281,7 +267,6 @@ const roomSocketEventHandler = async ({
             gameState: [newGameState, ...roomObject.gameState],
           };
           title = 'NUTUP AJIG!';
-          console.log(scores);
         } else {
           error = 'No UserId';
         }
@@ -331,14 +316,12 @@ const roomSocketEventHandler = async ({
   } else {
     error = 'Room doesn\'t exist';
   }
-  console.log('after switch');
   if (error) {
     // if there is an error pass execute callback with error
     callback({ error });
   } else {
     // save changes
     if (newRoom) {
-      console.log('omiting new update');
       try {
         fetchedRoom.overwrite(newRoom);
         await fetchedRoom.save();
@@ -364,7 +347,7 @@ const roomSocketEventHandler = async ({
       print('warn', `Program tries to overwrite ${roomId} with empty object`);
       callback({ error: `Error at updating game. ${type} is not success` });
     }
-    print('', `User ${userId} does ${type}`);
+    print('access', `User ${userId} from room ID: ${roomId} ${type}`);
   }
 };
 
@@ -372,7 +355,6 @@ const createRoom = async (req, res) => {
   // Create a new room based on current date string
   // return { roomId }
   const { userId } = req;
-  console.log('creating new room');
   const hash = crypto.createHash('md5');
   hash.update(new Date().toString());
   let wannaBeId = hash.digest('hex').slice(0, 10);
@@ -386,7 +368,6 @@ const createRoom = async (req, res) => {
 
   if (fetchedRoom) {
     print('warn', 'roomIds start getting full.');
-    console.log(fetchedRoom, wannaBeId);
     const secondHash = crypto.createHash('md5');
     secondHash.update(`${wannaBeId} ${Math.random() * 10}`);
     wannaBeId = secondHash.digest('hex').slice(0, 10);
@@ -415,7 +396,7 @@ const createRoom = async (req, res) => {
 
   try {
     room.save();
-    console.log(room);
+    print('access', `${userId} created a room with ID: ${wannaBeId}`);
     res.status(200).json({ roomId: wannaBeId });
   } catch (err) {
     print('error', `Error when creating Room with id: ${wannaBeId}\n${err}`);
@@ -443,6 +424,7 @@ const checkRoom = async (req, res) => {
   } else {
     res.sendStatus(404);
   }
+  print('access', `${req.ip} did a check room with ID: ${roomId}`);
 };
 
 roomRouter.get('/:roomId', checkRoom);
