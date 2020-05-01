@@ -4,15 +4,17 @@ services:
     image: mongo:3.6
   web:
     build: .
+    container_name: bancengserver
     ports:
-     - "8080:8080"
+     - "7770:7770"
     environment:
-     - MONGODB_URI=mongodb://mongo:27017/test 
+     - MONGODB_URI=mongodb://mongo:27017/banceng
+     - SESSION_SECRET=34297d81e415d711531f1fbec6d677df
+     - JWT_SECRET=6ab100d8e10459c32ed4cade1f45033a
     links:
      - mongo 
     depends_on: 
      - mongo 
     volumes:
-     - .:/starter
-     - /starter/node_modules
+     - /home/serenity/rootData/banceng:/app
      

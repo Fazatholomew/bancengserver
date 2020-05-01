@@ -12,7 +12,6 @@ const chalk = require('chalk');
 const errorHandler = require('errorhandler');
 const dotenv = require('dotenv');
 const MongoStore = require('connect-mongo')(session);
-const path = require('path');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const expressStatusMonitor = require('express-status-monitor');
@@ -69,9 +68,8 @@ mongoose.connection.on('error', (err) => {
 /**
  * Express configuration.
  */
-app.set('host', process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0');
+app.set('host', process.env.NODEJS_IP || '0.0.0.0');
 app.set('port', process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080);
-app.set('views', path.join(__dirname, 'views'));
 app.use(expressStatusMonitor({ websocket: io, port: app.get('port') }));
 app.use(compression());
 app.use(logger('dev'));
