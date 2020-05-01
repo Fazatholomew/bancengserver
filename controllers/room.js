@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const Room = require('../models/Room');
+const User = require('../models/User');
 const { turnGenerator } = require('../utils/player');
 const { countScore } = require('../utils/engine');
 const print = require('../utils/logging');
@@ -28,7 +29,11 @@ const roomSocketEventHandler = async ({
   }
   let newRoom;
   let error = '';
+  let title = '';
   if (fetchedRoom) {
+    const roomObject = fetchedRoom.toObject();
+    const { gameState } = roomObject;
+    const latestGameState = gameState[0];
     switch (type) {
       // Switch of different events
       case 'ENTER ROOM':
@@ -40,9 +45,12 @@ const roomSocketEventHandler = async ({
             /* eslint-disable */
             if (fetchedRoom.people.indexOf(userId) === -1) {
               // user is not in the room
-              const roomObject = fetchedRoom.toObject();
-              const { gameState, people } = roomObject;
-              const latestGameState = gameState[0];
+              try {
+                await User.updateOne({ userId }, { currentRoom: roomId});
+              } catch (err) {
+                print('error', `Error when getting User from Database with id:${userId}\n${err}`);
+              }
+
               const newGameState = {
                 ...latestGameState,
                 players: [
@@ -56,16 +64,18 @@ const roomSocketEventHandler = async ({
                   }
                 ],
               };
+              const people = [userId, ...roomObject.people];
+              currentOrder = roomObject.currentOrder[0] ? turnGenerator(roomObject.currentOrder[0], people) : [];
               newRoom = {
                 ...roomObject,
-                people: [...people, userId],
-                gameState: [newGameState, ...gameState]
+                people,
+                gameState: [newGameState, ...gameState],
+                currentOrder
                 // latest game state has 0 as its index
               };
+              title = newRoom.people.length < 4 ? `Min ${ 4 - newRoom.people.length}` : 'Kocok sok!';
               socket.join(roomId);
             } else {
-              console.log(userId);
-              console.log(fetchedRoom.people)
               error = 'You\'re already in the room';
             }
           }
@@ -82,20 +92,20 @@ const roomSocketEventHandler = async ({
         if (!fetchedRoom.isPlaying) {
           const payloadData = payload.cards;
           const players = Object.keys(payloadData);
-          const roomObj = fetchedRoom.toObject();
-          const gameState = roomObj.gameState[0];
           let turnFirst;
           let currentOrder;
-          if (fetchedRoom.gameState[0].game === 0) {
+          if (latestGameState.game === 0) {
             // get person who has 3 diamond
             [turnFirst] = players.filter((player) => payloadData[player]['3 Diamond']); // return userId who has 3 diamond
-            currentOrder = turnGenerator(turnFirst, roomObj.people);
+            currentOrder = turnGenerator(turnFirst, roomObject.people);
+            title = 'Tiga Tempe Yo!';
           } else {
-            currentOrder = turnGenerator(gameState.winners[0], roomObj.currentOrder);
+            currentOrder = turnGenerator(latestGameState.winners[0], roomObject.currentOrder);
             [turnFirst] = currentOrder;
+            title = `Jalan ${turnFirst} ajig!`;
             // find winner and starts from there;
           }
-          const playersWithCards = gameState.players.map((player) => {
+          const playersWithCards = latestGameState.players.map((player) => {
             const cards = Object.keys(payloadData[player.userId]);
             return {
               ...player,
@@ -103,13 +113,13 @@ const roomSocketEventHandler = async ({
             };
           });
           const newGameState = {
-            ...gameState,
+            ...latestGameState,
             currentTurn: turnFirst,
             players: playersWithCards
           };
           newRoom = {
-            ...roomObj,
-            gameState: [newGameState, ...roomObj.gameState],
+            ...roomObject,
+            gameState: [newGameState, ...gameState],
             currentOrder,
             isPlaying: true
           };
@@ -123,9 +133,6 @@ const roomSocketEventHandler = async ({
         // Update database
         if (fetchedRoom.gameState[0].currentTurn === userId) {
           const { cards } = payload;
-          const roomObject = fetchedRoom.toObject();
-          const { gameState } = roomObject;
-          const latestGameState = gameState[0];
           const playerIndex = roomObject.currentOrder.indexOf(userId);
           let counter = 0;
           counter += playerIndex;
@@ -134,20 +141,16 @@ const roomSocketEventHandler = async ({
             isCussPlayers[player.userId] = player.isCuss;
           });
           const _buffer = [];
-          console.log('CurrentOrder', roomObject.currentOrder);
           while (true) { // eslint-disable-line
             if (!isCussPlayers[roomObject.currentOrder[counter]]
               && roomObject.currentOrder[counter] !== userId) {
-              console.log('now', roomObject.currentOrder[counter]);
               break;
             }
             _buffer.push(roomObject.currentOrder[counter]);
-            console.log('buffer', _buffer);
             counter++;
             counter %= roomObject.currentOrder.length;
           }
           const currentTurn = roomObject.currentOrder[counter];
-          console.log('currentTurn', currentTurn);
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
           const others = latestGameState.players.filter((player) => player.userId !== userId);
           const userCards = user.cards.filter((card) => !cards.includes(card));
@@ -165,6 +168,7 @@ const roomSocketEventHandler = async ({
             gameState: [newGameState, ...gameState]
             // latest game state has 0 as its index
           };
+          title = `Jalan ${currentTurn} ajig!`;
         }
         break;
 
@@ -173,16 +177,11 @@ const roomSocketEventHandler = async ({
         // add cussCounter
         // turn player isCuss to true
         if (userId) {
-          console.log('cuss ing');
-          const roomObject = fetchedRoom.toObject();
-          const { gameState } = roomObject;
-          const latestGameState = gameState[0];
           const playerIndex = roomObject.currentOrder.indexOf(userId);
           let table = [...latestGameState.playingCards];
           const user = latestGameState.players.filter((player) => player.userId === userId)[0];
           const others = latestGameState.players.filter((player) => player.userId !== userId);
           if (latestGameState.cussCounter === roomObject.people.length - 2) {
-            console.log('all people cuss');
             table = [];
             const modifiedOthers = others.map((player) => ({ ...player, isCuss: false }));
             const newGameState = {
@@ -198,8 +197,8 @@ const roomSocketEventHandler = async ({
               ...roomObject,
               gameState: [newGameState, ...roomObject.gameState],
             };
+            title = `Culun semua, jalan ${latestGameState.lastLawan}!`;
           } else {
-            console.log('not everyone cuss');
             let counter = 0;
             counter += playerIndex;
             const isCussPlayers = {};
@@ -207,21 +206,17 @@ const roomSocketEventHandler = async ({
               isCussPlayers[player.userId] = player.isCuss;
             });
             const _buffer = [];
-            console.log('CurrentOrder', roomObject.currentOrder);
             while (true) { // eslint-disable-line
               if (!isCussPlayers[roomObject.currentOrder[counter]]
                 && roomObject.currentOrder[counter] !== userId
                 && latestGameState.lastLawan !== roomObject.currentOrder[counter]) {
-                console.log('now', roomObject.currentOrder[counter]);
                 break;
               }
               _buffer.push(roomObject.currentOrder[counter]);
-              console.log('buffer', _buffer);
               counter++;
               counter %= roomObject.currentOrder.length;
             }
             const currentTurn = roomObject.currentOrder[counter];
-            console.log('currentTurn', currentTurn);
             user.isCuss = true;
             const newGameState = {
               ...latestGameState,
@@ -235,6 +230,7 @@ const roomSocketEventHandler = async ({
               ...roomObject,
               gameState: [newGameState, ...roomObject.gameState],
             };
+            title = `Culun ${userId}, jalan ${currentTurn}!`;
           }
         }
         break;
@@ -247,9 +243,6 @@ const roomSocketEventHandler = async ({
         // add game
         // round = 0
         if (userId) {
-          const roomObject = fetchedRoom.toObject();
-          const { gameState } = roomObject;
-          const latestGameState = gameState[0];
           const scores = countScore(latestGameState.players, userId);
           const players = latestGameState.players.map((player) => ({
             ...player,
@@ -273,9 +266,45 @@ const roomSocketEventHandler = async ({
             isPlaying: false,
             gameState: [newGameState, ...roomObject.gameState],
           };
-          console.log(scores);
+          title = 'NUTUP AJIG!';
         } else {
           error = 'No UserId';
+        }
+        break;
+
+      case 'EXIT ROOM':
+        if (userId) {
+          try {
+            await User.updateOne({ userId }, { currentRoom: '' });
+          } catch (err) {
+            print('error', `Error when getting User from Database with id:${userId}\n${err}`);
+          }
+          const newPlayers = latestGameState.players.filter((player) => player.userId !== userId);
+          const players = newPlayers.map((player) => ({
+            ...player,
+            isCuss: false,
+            cards: [],
+          }));
+          const newGameState = {
+            ...latestGameState,
+            players,
+            game: newPlayers.length === 0 ? 0 : latestGameState.game,
+            playingCards: [],
+            cussCounter: 0,
+            round: 0,
+            lastLawan: '',
+          };
+          const people = roomObject.people.filter((id) => id !== userId);
+          const { winners } = latestGameState;
+          const currentTurn = winners[0] ? winners[0] !== userId ? winners[0] : people[0] : people[0]; // eslint-disable-line
+          newRoom = {
+            ...roomObject,
+            people,
+            isPlaying: false,
+            gameState: [newGameState, ...roomObject.gameState],
+            currentOrder: turnGenerator(currentTurn, people)
+          };
+          title = `${userId} cabut, kocul`;
         }
         break;
 
@@ -287,14 +316,12 @@ const roomSocketEventHandler = async ({
   } else {
     error = 'Room doesn\'t exist';
   }
-  console.log('after switch');
   if (error) {
     // if there is an error pass execute callback with error
     callback({ error });
   } else {
     // save changes
     if (newRoom) {
-      console.log('omiting new update');
       try {
         fetchedRoom.overwrite(newRoom);
         await fetchedRoom.save();
@@ -302,9 +329,15 @@ const roomSocketEventHandler = async ({
         print('error', `Error when updating roomId: ${roomId}\n${err}`);
         callback({ error: err });
       }
+      const order = {};
+      newRoom.people.forEach((person) => {
+        order[person] = turnGenerator(person, newRoom.people).slice(1);
+      });
       const payload = JSON.stringify({
         room: {
-          ...newRoom,
+          title,
+          order,
+          isPlaying: newRoom.isPlaying,
           gameState: newRoom.gameState[0]
         }
       });
@@ -314,14 +347,14 @@ const roomSocketEventHandler = async ({
       print('warn', `Program tries to overwrite ${roomId} with empty object`);
       callback({ error: `Error at updating game. ${type} is not success` });
     }
-    print('', `User ${userId} does ${type}`);
+    print('access', `User ${userId} from room ID: ${roomId} ${type}`);
   }
 };
 
-const createRoom = async (req, res, next) => {
+const createRoom = async (req, res) => {
   // Create a new room based on current date string
   // return { roomId }
-  console.log('creating new room');
+  const { userId } = req;
   const hash = crypto.createHash('md5');
   hash.update(new Date().toString());
   let wannaBeId = hash.digest('hex').slice(0, 10);
@@ -330,12 +363,11 @@ const createRoom = async (req, res, next) => {
     fetchedRoom = await Room.findOne({ roomId: wannaBeId });
   } catch (err) {
     print('error', `Error when getting Room from Database with id:${wannaBeId}\n${err}`);
-    next(err);
+    res.sendStatus(500);
   }
 
   if (fetchedRoom) {
     print('warn', 'roomIds start getting full.');
-    console.log(fetchedRoom, wannaBeId);
     const secondHash = crypto.createHash('md5');
     secondHash.update(`${wannaBeId} ${Math.random() * 10}`);
     wannaBeId = secondHash.digest('hex').slice(0, 10);
@@ -359,24 +391,43 @@ const createRoom = async (req, res, next) => {
     gameState: [newGameState],
     currentOrder: [],
     isPlaying: false,
+    creator: userId
   });
 
   try {
     room.save();
+    print('access', `${userId} created a room with ID: ${wannaBeId}`);
+    res.status(200).json({ roomId: wannaBeId });
   } catch (err) {
     print('error', `Error when creating Room with id: ${wannaBeId}\n${err}`);
-    next(err);
+    res.sendStatus(500);
   }
-
-  res.json({ roomId: wannaBeId });
 };
 
+const checkRoom = async (req, res) => {
+  // Check roomId if it exists and not full
+  const { roomId } = req.params;
+  let fetchedRoom;
+  try {
+    fetchedRoom = await Room.findOne({ roomId });
+  } catch (err) {
+    print('error', `Error when getting Room from Database with id:${roomId}\n${err}`);
+    res.sendStatus(500);
+  }
+
+  if (fetchedRoom) {
+    if (fetchedRoom.people.length < 4) {
+      res.sendStatus(200);
+    } else {
+      res.sendStatus(429);
+    }
+  } else {
+    res.sendStatus(404);
+  }
+  print('access', `${req.ip} did a check room with ID: ${roomId}`);
+};
+
+roomRouter.get('/:roomId', checkRoom);
 roomRouter.post('/', createRoom);
 
 module.exports = { roomRouter, roomSocketEventHandler };
-
-// docker run --name blackhole -v ~/torrent:/utorrent/data -v ~/torrent/setting:/utorrent/settings -p 666:8080 -p 6881:6881 --restart unless-stopped ekho/utorrent:latest
-// docker run --name blackhole -v ~/torrent/setting:/datadir -v ~/torrent:/media -p 666:8080 --restart unless-stopped dbarton/utorrent
-// docker run -d --name minecraft -v ~/minecraft:/data -e EULA=TRUE -e LEVEL_TYPE=default -e GAMEMODE=survival -e DIFFICULTY=easy -e SERVER_NAME=GO_BIG_OR_GO_HOMR -e ALLOW_CHEATS=true -p 19132:19132/udp itzg/minecraft-bedrock-server
-// docker run -d --name minecraft -v ~/minecraft:/data -e EULA=TRUE -e LEVEL_TYPE=default -e GAMEMODE=survival -p 19132:19132/udp itzg/minecraft-bedrock-server
-// docker run -d -v ~/mincraft:/data -e TYPE=PAPER -e VERSION=1.9.4 -p 25565:25565 -e EULA=TRUE --name minecraft itzg/minecraft-server --noconsole

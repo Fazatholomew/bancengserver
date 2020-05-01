@@ -12,11 +12,15 @@ const print = (type, message) => {
       typeMes = chalk.yellow('WARNING');
       break;
 
+    case 'access':
+      typeMes = 'LOG ACCESS';
+      break;
+
     default:
       typeMes = '';
       break;
   }
-  console.log(`${date}: ${typeMes} ${message}`);
+  console.log(`${date}:\n${typeMes} ${message}`);
 };
 
 module.exports = print;
